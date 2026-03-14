@@ -18,6 +18,7 @@ import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
 import { scrollTo } from '@/utils/scroll'
 import PlayLine, { type PlayLineType } from '../components/PlayLine'
+import FuriganaText from '@/components/FuriganaText'
 // import { screenkeepAwake } from '@/utils/nativeModules/utils'
 // import { log } from '@/utils/log'
 // import { toast } from '@/utils/tools'
@@ -35,6 +36,7 @@ const LrcLine = memo(
     const theme = useTheme()
     const lrcFontSize = useSettingValue('playDetail.horizontal.style.lrcFontSize')
     const textAlign = useSettingValue('playDetail.style.align')
+    const isShowFurigana = useSettingValue('playDetail.isShowLyricFurigana')
     const size = lrcFontSize / 10
     const lineHeight = setSpText(size) * 1.3
 
@@ -53,37 +55,48 @@ const LrcLine = memo(
     // https://stackoverflow.com/a/72822360
     return (
       <View style={styles.line} onLayout={handleLayout}>
-        <AnimatedColorText
-          style={{
-            ...styles.lineText,
-            textAlign,
-            lineHeight,
-          }}
-          textBreakStrategy="simple"
-          color={colors[0]}
-          opacity={colors[2]}
-          size={size}
-        >
-          {line.text}
-        </AnimatedColorText>
-        {line.extendedLyrics.map((lrc, index) => {
-          return (
-            <AnimatedColorText
-              style={{
-                ...styles.lineTranslationText,
-                textAlign,
-                lineHeight: lineHeight * 0.8,
-              }}
-              textBreakStrategy="simple"
-              key={index}
-              color={colors[1]}
+        {isShowFurigana ? (
+          <View style={styles.lineFuriganaText}>
+            <FuriganaText
+              text={line.text}
+              size={size}
+              lineHeight={lineHeight}
+              textAlign={textAlign}
+              color={colors[0]}
               opacity={colors[2]}
-              size={size * 0.8}
-            >
-              {lrc}
-            </AnimatedColorText>
-          )
-        })}
+            />
+          </View>
+        ) : (
+          <AnimatedColorText
+            style={{
+              ...styles.lineText,
+              textAlign,
+              lineHeight,
+            }}
+            textBreakStrategy="simple"
+            color={colors[0]}
+            opacity={colors[2]}
+            size={size}
+          >
+            {line.text}
+          </AnimatedColorText>
+        )}
+        {line.extendedLyrics.map((lrc, index) => (
+          <AnimatedColorText
+            style={{
+              ...styles.lineTranslationText,
+              textAlign,
+              lineHeight: lineHeight * 0.8,
+            }}
+            textBreakStrategy="simple"
+            key={index}
+            color={colors[1]}
+            opacity={colors[2]}
+            size={size * 0.8}
+          >
+            {lrc}
+          </AnimatedColorText>
+        ))}
       </View>
     )
   },
@@ -349,5 +362,8 @@ const styles = createStyle({
     // lineHeight: 17,
     paddingTop: 5,
     // paddingBottom: 5,
+  },
+  lineFuriganaText: {
+    paddingTop: 2,
   },
 })

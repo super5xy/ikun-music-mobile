@@ -218,6 +218,16 @@ declare global {
       'playDetail.isShowLyricProgressSetting': boolean
 
       /**
+       * 播放详情页-是否调换歌词翻译与罗马音位置
+       */
+      'playDetail.isSwapLyricTranslationRoma': boolean
+
+      /**
+       * 播放详情页-是否启用日文汉字注音
+       */
+      'playDetail.isShowLyricFurigana': boolean
+
+      /**
        * 是否启用桌面歌词
        */
       'desktopLyric.enable': boolean

@@ -2,6 +2,7 @@ import {
   init as initLyricPlayer,
   toggleTranslation,
   toggleRoma,
+  toggleSwapTranslationRoma,
   play,
   pause,
   stop,
@@ -45,6 +46,7 @@ export default async (setting: LX.AppSetting) => {
     setPlaybackRate(setting['player.playbackRate']),
     toggleTranslation(setting['player.isShowLyricTranslation']),
     toggleRoma(setting['player.isShowLyricRoma']),
+    toggleSwapTranslationRoma(setting['playDetail.isSwapLyricTranslationRoma']),
   ])
 
   if (setting['desktopLyric.enable']) {

@@ -4,10 +4,12 @@ import Popup, { type PopupType, type PopupProps } from '@/components/common/Popu
 import { useI18n } from '@/lang'
 
 import SettingLyricProgress from './settings/SettingLyricProgress'
+import SettingLyricFurigana from './settings/SettingLyricFurigana'
 import SettingVolume from './settings/SettingVolume'
 import SettingPlaybackRate from './settings/SettingPlaybackRate'
 import SettingLrcFontSize from './settings/SettingLrcFontSize'
 import SettingLrcAlign from './settings/SettingLrcAlign'
+import SettingLyricTranslationRomaSwap from './settings/SettingLyricTranslationRomaSwap'
 
 export interface SettingPopupProps extends Omit<PopupProps, 'children'> {
   direction: 'vertical' | 'horizontal'
@@ -40,6 +42,8 @@ export default forwardRef<SettingPopupType, SettingPopupProps>(({ direction, ...
       <ScrollView>
         <View onStartShouldSetResponder={() => true}>
           <SettingLyricProgress />
+          <SettingLyricFurigana />
+          <SettingLyricTranslationRomaSwap />
           <SettingVolume />
           <SettingPlaybackRate />
           <SettingLrcFontSize direction={direction} />

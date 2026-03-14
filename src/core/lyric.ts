@@ -5,6 +5,7 @@ import {
   setPlaybackRate as lrcSetPlaybackRate,
   toggleTranslation as lrcToggleTranslation,
   toggleRoma as lrcToggleRoma,
+  toggleSwapTranslationRoma as lrcToggleSwapTranslationRoma,
   init as lrcInit,
 } from '@/plugins/lyric'
 import {
@@ -93,6 +94,11 @@ export const toggleTranslation = async (isShowTranslation: boolean) => {
 export const toggleRoma = async (isShowLyricRoma: boolean) => {
   lrcToggleRoma(isShowLyricRoma)
   await toggleDesktopLyricRoma(isShowLyricRoma)
+  if (playerState.isPlay) play()
+}
+
+export const toggleSwapTranslationRoma = async (isSwap: boolean) => {
+  lrcToggleSwapTranslationRoma(isSwap)
   if (playerState.isPlay) play()
 }
 

@@ -15,6 +15,7 @@ const lrcTools = {
   isPlay: false,
   isShowTranslation: false,
   isShowRoma: false,
+  isSwapTranslationRoma: false,
   lyricText: '',
   translationText: '' as string | null | undefined,
   romaText: '' as string | null | undefined,
@@ -56,8 +57,13 @@ const lrcTools = {
   },
   setLyric() {
     const extendedLyrics = [] as string[]
-    if (this.isShowTranslation && this.translationText) extendedLyrics.push(this.translationText)
-    if (this.isShowRoma && this.romaText) extendedLyrics.push(this.romaText)
+    if (this.isSwapTranslationRoma) {
+      if (this.isShowRoma && this.romaText) extendedLyrics.push(this.romaText)
+      if (this.isShowTranslation && this.translationText) extendedLyrics.push(this.translationText)
+    } else {
+      if (this.isShowTranslation && this.translationText) extendedLyrics.push(this.translationText)
+      if (this.isShowRoma && this.romaText) extendedLyrics.push(this.romaText)
+    }
     this.lrc!.setLyric(this.lyricText, extendedLyrics)
   },
 }
@@ -83,6 +89,11 @@ export const toggleTranslation = (isShow: boolean) => {
 }
 export const toggleRoma = (isShow: boolean) => {
   lrcTools.isShowRoma = isShow
+  if (!lrcTools.lyricText) return
+  lrcTools.setLyric()
+}
+export const toggleSwapTranslationRoma = (isSwap: boolean) => {
+  lrcTools.isSwapTranslationRoma = isSwap
   if (!lrcTools.lyricText) return
   lrcTools.setLyric()
 }

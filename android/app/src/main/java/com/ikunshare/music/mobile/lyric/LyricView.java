@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 import com.ikunshare.music.mobile.R;
 
 public class LyricView extends Activity implements View.OnTouchListener {
+  private static final String FURIGANA_MARK = "\u2063";
   LyricSwitchView textView = null;
   WindowManager windowManager = null;
   WindowManager.LayoutParams layoutParams = null;
@@ -53,6 +54,7 @@ public class LyricView extends Activity implements View.OnTouchListener {
   private boolean isLock = false;
   private boolean isSingleLine = false;
   private boolean isShowToggleAnima = false;
+  private boolean isShowFurigana = false;
   private String unplayColor = "rgba(255, 255, 255, 1)";
   private String playedColor = "rgba(7, 197, 86, 1)";
   private String shadowColor = "rgba(0, 0, 0, 0.15)";
@@ -66,7 +68,8 @@ public class LyricView extends Activity implements View.OnTouchListener {
 
   private int maxLineNum = 5;
   // private float lineHeight = 1;
-  private String currentLyric = "IKUN Music ^-^";
+  private String currentLyric = "";
+  private String currentFurigana = "";
   private ArrayList<String> currentExtendedLyrics = new ArrayList<>();
 
   private int mLastRotation;
@@ -141,7 +144,8 @@ public class LyricView extends Activity implements View.OnTouchListener {
 
   private void setLayoutParamsHeight() {
     if (textView == null) return;
-    int height = textView.getPaint().getFontMetricsInt(null) * maxLineNum;
+    int height = textView.getPreferredHeight(maxLineNum);
+    if (height <= 0) height = textView.getPaint().getFontMetricsInt(null) * maxLineNum;
     if (height > maxHeight - 100) height = maxHeight - 100;
     layoutParams.height = height;
     textView.setHeight(height);
@@ -211,6 +215,7 @@ public class LyricView extends Activity implements View.OnTouchListener {
     isLock = options.getBoolean("isLock", isLock);
     isSingleLine = options.getBoolean("isSingleLine", isSingleLine);
     isShowToggleAnima = options.getBoolean("isShowToggleAnima", isShowToggleAnima);
+    isShowFurigana = options.getBoolean("isShowFurigana", isShowFurigana);
     unplayColor = options.getString("unplayColor", unplayColor);
     playedColor = options.getString("playedColor", playedColor);
     shadowColor = options.getString("shadowColor", shadowColor);
@@ -253,8 +258,8 @@ public class LyricView extends Activity implements View.OnTouchListener {
 
   private void createTextView() {
     textView = new LyricSwitchView(reactContext, isSingleLine, isShowToggleAnima);
-    textView.setText("");
-    textView.setText(currentLyric);
+    textView.setLyricData(currentLyric, currentFurigana, currentExtendedLyrics, isShowFurigana);
+    textView.setCurrentText(currentLyric);
 
     textView.setTextColor(parseColor(playedColor));
     textView.setShadowColor(parseColor(shadowColor));
@@ -292,6 +297,7 @@ public class LyricView extends Activity implements View.OnTouchListener {
         break;
     }
     textView.setGravity(textPositionX | textPositionY);
+    textView.setSingleLine(isSingleLine);
 
     if (!isSingleLine) {
       textView.setMaxLines(maxLineNum);
@@ -370,26 +376,39 @@ public class LyricView extends Activity implements View.OnTouchListener {
     //设置透明
     layoutParams.format = PixelFormat.TRANSPARENT;
 
-    //添加到window中
     windowManager.addView(textView, layoutParams);
+    setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
   }
 
-  public void setLyric(String text, ArrayList<String> extendedLyrics) {
+  public void setLyric(String text, String furigana, ArrayList<String> extendedLyrics) {
     if (text.equals("") && text.equals(currentLyric) && extendedLyrics.size() == 0) return;
     currentLyric = text;
+    currentFurigana = furigana == null ? "" : furigana;
     currentExtendedLyrics = extendedLyrics;
     if (textView == null) return;
-    if (extendedLyrics.size() > 0 && maxLineNum > 1 && !isSingleLine) {
+    String displayText = text;
+    ArrayList<String> normalExtendedLyrics = new ArrayList<>(extendedLyrics.size());
+    String viewFurigana = currentFurigana;
+    for (String lrc : extendedLyrics) {
+      if (lrc != null && lrc.startsWith(FURIGANA_MARK)) {
+        if (viewFurigana.isEmpty()) viewFurigana = lrc.substring(FURIGANA_MARK.length());
+      } else {
+        normalExtendedLyrics.add(lrc);
+      }
+    }
+    if (normalExtendedLyrics.size() > 0 && maxLineNum > 1 && !isSingleLine) {
       int num = maxLineNum - 1;
       StringBuilder textBuilder = new StringBuilder(text);
-      for (String lrc : extendedLyrics) {
+      for (String lrc : normalExtendedLyrics) {
         textBuilder.append("\n").append(lrc);
         if (--num < 1) break;
       }
-      text = textBuilder.toString();
+      displayText = textBuilder.toString();
     }
-    if (textView == null) return;
-    textView.setText(text);
+    textView.setLyricData(text, viewFurigana, normalExtendedLyrics, isShowFurigana);
+    textView.setText(displayText);
+    setLayoutParamsHeight();
+    if (windowManager != null && layoutParams != null) windowManager.updateViewLayout(textView, layoutParams);
   }
 
   public void setMaxLineNum(int maxLineNum) {
@@ -580,13 +599,19 @@ public class LyricView extends Activity implements View.OnTouchListener {
     if (isLock) lockView();
     else unlockView();
 
-    setLyric(currentLyric, currentExtendedLyrics);
+    setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
   }
 
   public void setShowToggleAnima(boolean showToggleAnima) {
     isShowToggleAnima = showToggleAnima;
     if (textView == null) return;
     textView.setShowAnima(showToggleAnima);
+  }
+
+  public void setShowFurigana(boolean showFurigana) {
+    isShowFurigana = showFurigana;
+    if (textView == null) return;
+    setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
   }
 
   public void setTextSize(float size) {

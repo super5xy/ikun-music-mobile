@@ -1,9 +1,16 @@
 import { MeCab } from 'react-native-mecab'
-import { buildFuriganaChunks, type FuriganaChunk, type FuriganaToken } from '@/utils/furigana'
+import {
+  buildFuriganaChunks,
+  hasFuriganaReading,
+  hasJapaneseKana,
+  type FuriganaChunk,
+  type FuriganaToken,
+} from '@/utils/furigana'
 
 let mecabInstance: MeCab | null = null
 let initPromise: Promise<void> | null = null
 const DEFAULT_DIC = 'ipadic'
+export const FURIGANA_MARK = '\u2063'
 const furiganaCache = new Map<string, FuriganaChunk[]>()
 const MAX_CACHE = 200
 
@@ -56,4 +63,30 @@ export const disposeFurigana = async () => {
   mecabInstance = null
   initPromise = null
   await instance.dispose()
+}
+
+const rxTimeField = /^(?:\[[\d:.]+\])+/
+
+const shouldBuildLineFurigana = (text: string, chunks: FuriganaChunk[]) => {
+  return hasJapaneseKana(text) && hasFuriganaReading(chunks)
+}
+
+export const buildFuriganaLyric = async (lyric: string) => {
+  if (!lyric) return ''
+  const lines = lyric.split(/\r\n|\n|\r/)
+  const resultLines = await Promise.all(
+    lines.map(async (line) => {
+      const trimLine = line.trim()
+      if (!trimLine) return ''
+      const timeFieldMatch = trimLine.match(rxTimeField)
+      if (!timeFieldMatch) return ''
+      const timeField = timeFieldMatch[0]
+      const text = trimLine.slice(timeField.length).trim()
+      if (!text) return ''
+      const chunks = await tokenizeFurigana(text)
+      if (!shouldBuildLineFurigana(text, chunks)) return ''
+      return `${timeField}${FURIGANA_MARK}${JSON.stringify(chunks)}`
+    })
+  )
+  return resultLines.filter(Boolean).join('\n')
 }

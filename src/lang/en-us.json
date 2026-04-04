@@ -372,6 +372,8 @@
   "setting_lyric_desktop_text_y_top": "Top",
   "setting_lyric_desktop_theme": "Lyric Theme Color",
   "setting_lyric_desktop_toggle_anima": "Show lyric switching animation",
+  "setting_lyric_desktop_show_furigana": "Show Japanese furigana",
+  "setting_lyric_desktop_scroll_delay": "Lyric scroll delay",
   "setting_lyric_desktop_view_width": "Percentage of Window Width",
   "setting_other": "Extras",
   "setting_other_cache": "Cache Management (including the cache of songs, lyrics, error logs, etc., it is not recommended to clean up if there is no problem related to song playback)",

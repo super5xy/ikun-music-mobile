@@ -3,26 +3,26 @@ import { View } from 'react-native'
 import { useSettingValue } from '@/store/setting/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
-
 import CheckBoxItem from '../../components/CheckBoxItem'
-import { setDesktopLyricSingleLine } from '@/core/desktopLyric'
 import { updateSetting } from '@/core/common'
+import { toggleDesktopLyricFurigana } from '@/core/desktopLyric'
 
 export default memo(() => {
   const t = useI18n()
-  const isSingleLine = useSettingValue('desktopLyric.isSingleLine')
-  const update = (isSingleLine: boolean) => {
-    void setDesktopLyricSingleLine(isSingleLine).then(() => {
-      updateSetting({ 'desktopLyric.isSingleLine': isSingleLine })
+  const isShowLyricFurigana = useSettingValue('desktopLyric.isShowLyricFurigana')
+
+  const handleChange = (show: boolean) => {
+    void toggleDesktopLyricFurigana(show).then(() => {
+      updateSetting({ 'desktopLyric.isShowLyricFurigana': show })
     })
   }
 
   return (
     <View style={styles.content}>
       <CheckBoxItem
-        check={isSingleLine}
-        onChange={update}
-        label={t('setting_lyric_desktop_single_line')}
+        check={isShowLyricFurigana}
+        onChange={handleChange}
+        label={t('setting_lyric_desktop_show_furigana')}
       />
     </View>
   )
@@ -31,6 +31,5 @@ export default memo(() => {
 const styles = createStyle({
   content: {
     marginTop: 5,
-    marginBottom: 5,
   },
 })

@@ -15,6 +15,8 @@ import {
   showDesktopLyric,
   onLyricLinePlay,
   showRemoteLyric,
+  setDesktopLyricFuriganaEnabled,
+  setDesktopLyricScrollDelay,
 } from '@/core/desktopLyric'
 import playerState from '@/store/player/state'
 import { updateNowPlayingTitles } from '@/plugins/player/utils'
@@ -47,6 +49,8 @@ export default async (setting: LX.AppSetting) => {
     toggleTranslation(setting['player.isShowLyricTranslation']),
     toggleRoma(setting['player.isShowLyricRoma']),
     toggleSwapTranslationRoma(setting['playDetail.isSwapLyricTranslationRoma']),
+    setDesktopLyricFuriganaEnabled(setting['desktopLyric.isShowLyricFurigana']),
+    setDesktopLyricScrollDelay(setting['desktopLyric.scrollDelay']),
   ])
 
   if (setting['desktopLyric.enable']) {

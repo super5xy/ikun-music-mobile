@@ -18,6 +18,9 @@ public class LyricPlayer {
   Pattern timeFieldPattern;
   Pattern timePattern;
 
+  final String furiganaMark = "\u2063";
+  Pattern furiganaChunkPattern;
+
   String lyric = "";
   ArrayList<String> extendedLyrics = new ArrayList<>();
   List<HashMap> lines = new ArrayList<>();
@@ -27,6 +30,7 @@ public class LyricPlayer {
   int curLineNum = 0;
   int maxLine = 0;
   int offset = 150;
+  int scrollDelay = 0;
   int performanceTime = 0;
   int startPlayTime = 0;
   // int delay = 0;
@@ -45,6 +49,7 @@ public class LyricPlayer {
 
     timeFieldPattern = Pattern.compile(timeFieldExp);
     timePattern = Pattern.compile(timeExp);
+    furiganaChunkPattern = Pattern.compile("^" + Pattern.quote(furiganaMark) + "(.*)$");
   }
 
   public void setTempPause(boolean isPaused) {
@@ -124,6 +129,70 @@ public class LyricPlayer {
       .replaceAll(t_rxp_3, ".$1");
   }
 
+  private int parseTimeToMillis(String timeStr) {
+    String[] timeArr = timeStr.split(":");
+    String hours;
+    String minutes;
+    String seconds;
+    String milliseconds = "0";
+    switch (timeArr.length) {
+      case 3:
+        hours = timeArr[0];
+        minutes = timeArr[1];
+        seconds = timeArr[2];
+        break;
+      case 2:
+        hours = "0";
+        minutes = timeArr[0];
+        seconds = timeArr[1];
+        break;
+      case 1:
+        hours = "0";
+        minutes = "0";
+        seconds = timeArr[0];
+        break;
+      default:
+        return -1;
+    }
+    if (seconds.contains(".")) {
+      timeArr = seconds.split("\\.");
+      seconds = timeArr[0];
+      if (timeArr.length > 1) milliseconds = timeArr[1];
+    }
+    if (milliseconds.length() == 1) milliseconds += "00";
+    else if (milliseconds.length() == 2) milliseconds += "0";
+    else if (milliseconds.length() > 3) milliseconds = milliseconds.substring(0, 3);
+    return Integer.parseInt(hours) * 60 * 60 * 1000
+      + Integer.parseInt(minutes) * 60 * 1000
+      + Integer.parseInt(seconds) * 1000
+      + Integer.parseInt(milliseconds);
+  }
+
+  private HashMap findLineByTime(HashMap linesMap, String timeStr) {
+    HashMap targetLine = (HashMap) linesMap.get(timeStr);
+    if (targetLine != null) return targetLine;
+
+    int targetTime = parseTimeToMillis(timeStr);
+    if (targetTime < 0) return null;
+
+    HashMap nearestLine = null;
+    int nearestDelta = Integer.MAX_VALUE;
+    for (Object entryObject : linesMap.entrySet()) {
+      Entry<String, HashMap> entry = (Entry<String, HashMap>) entryObject;
+      HashMap candidateLine = entry.getValue();
+      Object time = candidateLine.get("time");
+      if (!(time instanceof Integer)) continue;
+      int delta = Math.abs((Integer) time - targetTime);
+      if (delta < nearestDelta) {
+        nearestDelta = delta;
+        nearestLine = candidateLine;
+      }
+      if (delta == 0) return candidateLine;
+    }
+
+    return nearestDelta <= 500 ? nearestLine : null;
+  }
+
   private void parseExtendedLyric(HashMap linesMap, String extendedLyric) {
     String[] extendedLyricLines = extendedLyric.split("\r\n|\n|\r");
     for (String translationLine : extendedLyricLines) {
@@ -134,11 +203,18 @@ public class LyricPlayer {
         String text = line.replaceAll(timeFieldExp, "").trim();
         if (text.length() > 0) {
           Matcher timeMatchResult = timePattern.matcher(timeField);
+          Matcher furiganaResult = furiganaChunkPattern.matcher(text);
+          boolean isFurigana = furiganaResult.matches();
+          String lyricText = isFurigana ? furiganaResult.group(1) : text;
           while (timeMatchResult.find()) {
-            String timeStr = timeMatchResult.group();
-            timeStr = formatTimeLabel(timeStr);
-            HashMap targetLine = (HashMap) linesMap.get(timeStr);
-            if (targetLine != null) ((ArrayList<String>) targetLine.get("extendedLyrics")).add(text);
+            String timeStr = formatTimeLabel(timeMatchResult.group());
+            HashMap targetLine = findLineByTime(linesMap, timeStr);
+            if (targetLine == null) continue;
+            if (isFurigana) {
+              targetLine.put("furigana", lyricText);
+            } else {
+              ((ArrayList<String>) targetLine.get("extendedLyrics")).add(lyricText);
+            }
           }
         }
       }
@@ -195,14 +271,13 @@ public class LyricPlayer {
               seconds = timeArr[0];
               if (timeArr.length > 1) milliseconds = timeArr[1];
             }
+            int time = parseTimeToMillis(timeStr);
+            if (time < 0) continue;
             HashMap<String, Object> lineInfo = new HashMap<>();
-            int time = Integer.parseInt(hours) * 60 * 60 * 1000
-              + Integer.parseInt(minutes) * 60 * 1000
-              + Integer.parseInt(seconds) * 1000
-              + Integer.parseInt(milliseconds);
             lineInfo.put("time", time);
             lineInfo.put("text", text);
             lineInfo.put("extendedLyrics", new ArrayList<String>(extendedLyrics.size()));
+            lineInfo.put("furigana", "");
             timeMap.put(timeStr, time);
             linesMap.put(timeStr, lineInfo);
           }
@@ -260,7 +335,7 @@ public class LyricPlayer {
     Object tagOffset = tags.get("offset");
     if (tagOffset == null) tagOffset = 0;
     performanceTime = getNow() - (int) tagOffset - offset;
-    startPlayTime = curTime;
+    startPlayTime = curTime - scrollDelay;
 
     curLineNum = findCurLineNum(getCurrentTime()) - 1;
 
@@ -340,6 +415,13 @@ public class LyricPlayer {
 
   public void setPlaybackRate(float playbackRate) {
     this.playbackRate = playbackRate;
+    if (this.lines.size() == 0) return;
+    if (!this.isPlay) return;
+    this.play(this.getCurrentTime());
+  }
+
+  public void setScrollDelay(float scrollDelay) {
+    this.scrollDelay = (int) (scrollDelay * 1000);
     if (this.lines.size() == 0) return;
     if (!this.isPlay) return;
     this.play(this.getCurrentTime());

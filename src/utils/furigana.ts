@@ -17,6 +17,8 @@ const kataToHira = (input: string) =>
     String.fromCharCode(char.charCodeAt(0) - 0x60)
   )
 
+export const hasJapaneseKana = (text: string) => rxKana.test(text)
+
 export const normalizeReading = (reading?: string | null) => {
   if (!reading) return ''
   return kataToHira(reading)
@@ -38,4 +40,23 @@ export const buildFuriganaChunks = (tokens: FuriganaToken[]): FuriganaChunk[] =>
 
 export const hasFuriganaReading = (chunks: FuriganaChunk[]) => {
   return chunks.some((chunk) => !!chunk.reading && !chunk.isKanaOnly && rxKana.test(chunk.reading))
+}
+
+export const buildFuriganaTextFromChunks = (chunks: FuriganaChunk[]) => {
+  return chunks
+    .map((chunk) => {
+      if (chunk.isKanaOnly) return chunk.surface
+      return chunk.reading ?? chunk.surface
+    })
+    .join('')
+}
+
+export const buildKanjiOnlyFuriganaTextFromChunks = (chunks: FuriganaChunk[]) => {
+  return chunks
+    .map((chunk) => {
+      if (chunk.isKanaOnly) return ''.padEnd(chunk.surface.length, ' ')
+      return chunk.reading ?? ''
+    })
+    .join('')
+    .trimEnd()
 }

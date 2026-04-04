@@ -253,6 +253,16 @@ declare global {
       'desktopLyric.isSingleLine': boolean
 
       /**
+       * 桌面歌词是否显示日文汉字注音
+       */
+      'desktopLyric.isShowLyricFurigana': boolean
+
+      /**
+       * 桌面歌词滚动延迟（秒）
+       */
+      'desktopLyric.scrollDelay': number
+
+      /**
        * 桌面歌词是否启用歌词切换动画
        */
       'desktopLyric.showToggleAnima': boolean

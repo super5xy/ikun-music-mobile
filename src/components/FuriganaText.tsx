@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import { View } from 'react-native'
 import Text, { AnimatedColorText } from '@/components/common/Text'
 import { tokenizeFurigana } from '@/plugins/furigana'
-import { type FuriganaChunk, hasFuriganaReading } from '@/utils/furigana'
+import { type FuriganaChunk, hasFuriganaReading, hasJapaneseKana } from '@/utils/furigana'
 import { createStyle } from '@/utils/tools'
 
 const styles = createStyle({
@@ -51,7 +51,7 @@ const FuriganaText = ({
   enabled = true,
 }: FuriganaTextProps) => {
   const [chunks, setChunks] = useState<FuriganaChunk[] | null>(null)
-  const hasJapanese = useMemo(() => /[\u3040-\u30FF\u4E00-\u9FFF]/.test(text), [text])
+  const hasJapanese = useMemo(() => hasJapaneseKana(text), [text])
 
   useEffect(() => {
     let active = true

@@ -47,6 +47,10 @@ export const setSendLyricTextEvent = async (isSend: boolean) => {
 export const showDesktopLyricView = async ({
   isShowToggleAnima,
   isSingleLine,
+  isShowTranslation,
+  isShowRoma,
+  isShowFurigana,
+  scrollDelay,
   width,
   maxLineNum,
   isLock,
@@ -62,6 +66,10 @@ export const showDesktopLyricView = async ({
 }: {
   isShowToggleAnima: boolean
   isSingleLine: boolean
+  isShowTranslation: boolean
+  isShowRoma: boolean
+  isShowFurigana: boolean
+  scrollDelay: number
   width: number
   maxLineNum: number
   isLock: boolean
@@ -78,6 +86,10 @@ export const showDesktopLyricView = async ({
   return LyricModule.showDesktopLyric({
     isSingleLine,
     isShowToggleAnima,
+    isShowTranslation,
+    isShowRoma,
+    isShowFurigana,
+    scrollDelay,
     isLock,
     unplayColor,
     playedColor,
@@ -125,9 +137,10 @@ export const pause = async (): Promise<void> => {
 export const setLyric = async (
   lyric: string,
   translation: string,
-  romalrc: string
+  romalrc: string,
+  furigana = ''
 ): Promise<void> => {
-  return LyricModule.setLyric(lyric, translation || '', romalrc || '')
+  return LyricModule.setLyric(lyric, translation || '', romalrc || '', furigana || '')
 }
 
 export const setPlaybackRate = async (rate: number): Promise<void> => {
@@ -148,6 +161,14 @@ export const toggleTranslation = async (isShowTranslation: boolean): Promise<voi
  */
 export const toggleRoma = async (isShowRoma: boolean): Promise<void> => {
   return LyricModule.toggleRoma(isShowRoma)
+}
+
+export const toggleFurigana = async (isShowFurigana: boolean): Promise<void> => {
+  return LyricModule.toggleFurigana(isShowFurigana)
+}
+
+export const setScrollDelay = async (scrollDelay: number): Promise<void> => {
+  return LyricModule.setScrollDelay(scrollDelay)
 }
 
 /**

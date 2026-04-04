@@ -46,6 +46,8 @@ const defaultSetting: LX.AppSetting = {
   'desktopLyric.width': 100,
   'desktopLyric.maxLineNum': 5,
   'desktopLyric.isSingleLine': false,
+  'desktopLyric.isShowLyricFurigana': false,
+  'desktopLyric.scrollDelay': 0,
   'desktopLyric.showToggleAnima': true,
   'desktopLyric.position.x': 0,
   'desktopLyric.position.y': 0,

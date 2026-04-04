@@ -5,7 +5,9 @@ import IsShowLyric from './IsShowLyric'
 import IsLockLyric from './IsLockLyric'
 import IsShowToggleAnima from './IsShowToggleAnima'
 import IsSingleLine from './IsSingleLine'
+import IsShowLyricFurigana from './IsShowLyricFurigana'
 import TextSize from './TextSize'
+import ScrollDelay from './ScrollDelay'
 import ViewWidth from './ViewWidth'
 import MaxLineNum from './MaxLineNum'
 import TextOpacity from './TextOpacity'
@@ -23,9 +25,11 @@ export default memo(() => {
       <IsShowLyric />
       <IsLockLyric />
       <IsShowToggleAnima />
+      <IsShowLyricFurigana />
       <IsSingleLine />
       <Theme />
       <TextSize />
+      <ScrollDelay />
       <ViewWidth />
       <MaxLineNum />
       <TextOpacity />

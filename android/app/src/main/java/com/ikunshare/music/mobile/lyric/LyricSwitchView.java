@@ -46,8 +46,8 @@ public final class LyricSwitchView extends TextSwitcher {
 //      }
     } else {
       viewArray = new ArrayList<>(2);
-      textView = new TextView(context);
-      textView2 = new TextView(context);
+      textView = new LyricTextView(context);
+      textView2 = new LyricTextView(context);
       viewArray.add(textView);
       viewArray.add(textView2);
       for (TextView v : viewArray) {
@@ -166,6 +166,27 @@ public final class LyricSwitchView extends TextSwitcher {
     // }
     // https://stackoverflow.com/a/28367917
     for (TextView v : viewArray) v.setShadowLayer(1.6f, 1.5f, 1.3f, i);
+  }
+
+  public void setLyricData(String text, String furigana, ArrayList<String> extendedLyrics, boolean isShowFurigana) {
+    for (TextView v : viewArray) {
+      if (v instanceof LyricTextView) {
+        ((LyricTextView) v).setLyricData(text, furigana, extendedLyrics, isShowFurigana);
+      }
+    }
+  }
+
+  public int getPreferredHeight(int maxLineNum) {
+    View currentView = getCurrentView();
+    if (currentView instanceof LyricTextView) {
+      return ((LyricTextView) currentView).getPreferredHeight(maxLineNum);
+    }
+    return 0;
+  }
+
+  public void setCurrentText(CharSequence str) {
+    TextView currentView = (TextView) getCurrentView();
+    if (currentView != null) currentView.setText(str);
   }
 
   public void setSourceText(CharSequence str) {

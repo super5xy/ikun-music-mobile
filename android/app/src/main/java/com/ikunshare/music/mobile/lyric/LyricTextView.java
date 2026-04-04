@@ -4,55 +4,93 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.util.Log;
 import android.view.Gravity;
 import android.widget.TextView;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
 
 // https://github.com/Block-Network/StatusBarLyric/blob/main/app/src/main/java/statusbar/lyric/view/LyricTextView.kt
 @SuppressLint("AppCompatCustomView")
 public class LyricTextView extends TextView {
+  private static final float SPEED_LIMIT = 0.135F;
+  private static final float READING_SCALE = 1.4F;
+  private static final float READING_GAP = 4F;
+  public static final int startScrollDelay = 1500;
+  public static final int invalidateDelay = 10;
+
   private boolean isStop = true;
+  private boolean isSingleLineMode = true;
+  private boolean isShowFurigana = false;
+  private int maxDisplayLines = 1;
   private float textLength = 0F;
   private float viewWidth = 0F;
   private float viewHeight = 0F;
-  private final float SPEED_LIMIT = 0.135F;
   private float speed;
   private float xx = 0F;
   private int gravityVertical = Gravity.TOP;
   private int gravityHorizontal = Gravity.CENTER;
-  private float y = 0F;
-  private String text = null;
+  private String text = "";
+  private String furigana = "";
   private final Paint mPaint;
+  private final Paint readingPaint;
   private final Runnable mStartScrollRunnable;
   private final Runnable invalidateRunnable;
-  public static final int startScrollDelay = 1500;
-  public static final int invalidateDelay = 10;
+  private final ArrayList<String> extendedLyrics = new ArrayList<>();
+  private final ArrayList<FuriganaChunk> furiganaChunks = new ArrayList<>();
+  private final ArrayList<ArrayList<FuriganaChunk>> wrappedFuriganaLines = new ArrayList<>();
+  private final ArrayList<String> wrappedPrimaryLines = new ArrayList<>();
+  private final ArrayList<String> wrappedExtendedLines = new ArrayList<>();
+
+  private static final class FuriganaChunk {
+    final String surface;
+    final String reading;
+    final boolean isKanaOnly;
+
+    FuriganaChunk(String surface, String reading, boolean isKanaOnly) {
+      this.surface = surface;
+      this.reading = reading;
+      this.isKanaOnly = isKanaOnly;
+    }
+  }
 
   public LyricTextView(Context context) {
     super(context);
     mStartScrollRunnable = LyricTextView.this::startScroll;
     invalidateRunnable = LyricTextView.this::invalidate;
     mPaint = getPaint();
+    readingPaint = new Paint(mPaint);
+    readingPaint.setTextSize(mPaint.getTextSize() * READING_SCALE);
     speed = SPEED_LIMIT * getTextSize();
   }
 
-  private void init() {
-    xx = 0.0F;
-    textLength = getTextLength();
-    // viewWidth = (float) getWidth();
+  public void setLyricData(String text, String furigana, ArrayList<String> extendedLyrics, boolean isShowFurigana) {
+    stopScroll();
+    this.text = text == null ? "" : text;
+    this.furigana = furigana == null ? "" : furigana;
+    this.isShowFurigana = isShowFurigana;
+    this.extendedLyrics.clear();
+    if (extendedLyrics != null) this.extendedLyrics.addAll(extendedLyrics);
+    parseFurigana();
+    init();
+    postInvalidate();
+    postDelayed(mStartScrollRunnable, startScrollDelay);
   }
 
   @Override
   protected void onDetachedFromWindow() {
     removeCallbacks(mStartScrollRunnable);
+    removeCallbacks(invalidateRunnable);
     super.onDetachedFromWindow();
   }
 
   @Override
   protected void onTextChanged(CharSequence text, int start, int lengthBefore, int lengthAfter) {
     super.onTextChanged(text, start, lengthBefore, lengthAfter);
+    if (mPaint == null || readingPaint == null) return;
     stopScroll();
-    this.text = text.toString();
     init();
     postInvalidate();
     postDelayed(mStartScrollRunnable, startScrollDelay);
@@ -61,12 +99,14 @@ public class LyricTextView extends TextView {
   @Override
   public void setTextColor(int color) {
     if (mPaint != null) mPaint.setColor(color);
+    if (readingPaint != null) readingPaint.setColor(color);
     postInvalidate();
   }
 
   @Override
   public void setShadowLayer(float radius, float dx, float dy, int shadowColor) {
     if (mPaint != null) mPaint.setShadowLayer(radius, dx, dy, shadowColor);
+    if (readingPaint != null) readingPaint.setShadowLayer(radius, dx, dy, shadowColor);
     post(mStartScrollRunnable);
   }
 
@@ -74,6 +114,7 @@ public class LyricTextView extends TextView {
   public void setTextSize(float size) {
     super.setTextSize(size);
     speed = SPEED_LIMIT * size;
+    readingPaint.setTextSize(size * READING_SCALE);
     if (text == null) return;
     post(mStartScrollRunnable);
   }
@@ -90,7 +131,6 @@ public class LyricTextView extends TextView {
   public void setHeight(int pixels) {
     super.setHeight(pixels);
     viewHeight = pixels;
-    y = getDrawY();
     if (text == null) return;
     post(mStartScrollRunnable);
   }
@@ -107,35 +147,86 @@ public class LyricTextView extends TextView {
     gravityVertical = gravity & Gravity.VERTICAL_GRAVITY_MASK;
     gravityHorizontal = gravity & Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK;
 
-    y = getDrawY();
-    // Log.d("Lyric", "gravityVertical: " + gravityVertical + " gravityHorizontal: " + gravityHorizontal);
-
     if (text == null) return;
     post(mStartScrollRunnable);
   }
 
   @Override
+  public void setSingleLine(boolean singleLine) {
+    super.setSingleLine(singleLine);
+    isSingleLineMode = singleLine;
+    if (mPaint == null || readingPaint == null) return;
+    stopScroll();
+    init();
+    postInvalidate();
+    postDelayed(mStartScrollRunnable, startScrollDelay);
+  }
+
+  @Override
+  public void setMaxLines(int maxLines) {
+    super.setMaxLines(maxLines);
+    maxDisplayLines = Math.max(maxLines, 1);
+    if (mPaint == null || readingPaint == null) return;
+    stopScroll();
+    init();
+    postInvalidate();
+    postDelayed(mStartScrollRunnable, startScrollDelay);
+  }
+
+  public int getPreferredHeight(int maxLineNum) {
+    int totalLineLimit = Math.max(maxLineNum, 1);
+    int extraLineCount = isSingleLineMode ? 0 : Math.min(wrappedExtendedLines.size(), Math.max(totalLineLimit - 1, 0));
+    int primaryLineCount = Math.min(getPrimaryDisplayLineCount(), Math.max(totalLineLimit - extraLineCount, 1));
+    int preferredHeight = (int) Math.ceil(primaryLineCount * getPrimaryLineHeight() + extraLineCount * getNormalLineHeight());
+    return preferredHeight;
+  }
+
+  @Override
   protected void onDraw(Canvas canvas) {
-    float mSpeed = speed;
-    if (text != null) {
-      Log.d("Lyric", "getHeight: " + getHeight() + " y: " + y);
-      canvas.drawText(text, getDrawX(), y, mPaint);
-      if (getText().length() >= 20) {
-        mSpeed += mSpeed;
+    if (text == null || mPaint == null) return;
+
+    float primaryLineHeight = getPrimaryLineHeight();
+    int totalLineLimit = Math.max(maxDisplayLines, 1);
+    int extraLineCount = isSingleLineMode ? 0 : Math.min(wrappedExtendedLines.size(), Math.max(totalLineLimit - 1, 0));
+    int primaryLineCount = Math.min(getPrimaryDisplayLineCount(), Math.max(totalLineLimit - extraLineCount, 1));
+    float totalHeight = primaryLineCount * primaryLineHeight + extraLineCount * getNormalLineHeight();
+    float top = getContentTop(totalHeight);
+    float lineTop = top;
+
+    for (int i = 0; i < primaryLineCount; i++) {
+      if (hasFurigana() && i < wrappedFuriganaLines.size() && readingPaint != null) {
+        ArrayList<FuriganaChunk> lineChunks = wrappedFuriganaLines.get(i);
+        drawFuriganaLine(canvas, getAlignedX(getFuriganaLineWidth(lineChunks)), lineTop, lineChunks);
+      } else {
+        String line = getPrimaryLine(i);
+        canvas.drawText(line, getAlignedX(mPaint.measureText(line)), lineTop - mPaint.getFontMetrics().ascent, mPaint);
       }
+      lineTop += primaryLineHeight;
     }
 
-    if (!isStop) {
+    for (int i = 0; i < extraLineCount; i++) {
+      String line = wrappedExtendedLines.get(i);
+      canvas.drawText(line, getAlignedX(mPaint.measureText(line)), lineTop - mPaint.getFontMetrics().ascent, mPaint);
+      lineTop += getNormalLineHeight();
+    }
+
+    if (isSingleLineMode && !isStop) {
+      float mSpeed = speed;
+      if (text.length() >= 20) mSpeed += mSpeed;
       if (viewWidth - xx + mSpeed >= textLength) {
         xx = viewWidth - textLength - 2;
         stopScroll();
       } else {
         xx -= mSpeed;
       }
-
       invalidateAfter();
     }
+  }
 
+  private void init() {
+    updateWrappedLines();
+    xx = 0.0F;
+    textLength = getTextLength();
   }
 
   private void invalidateAfter() {
@@ -145,7 +236,7 @@ public class LyricTextView extends TextView {
 
   private void startScroll() {
     init();
-    isStop = false;
+    isStop = !isSingleLineMode || textLength <= viewWidth;
     postInvalidate();
   }
 
@@ -155,57 +246,240 @@ public class LyricTextView extends TextView {
     postInvalidate();
   }
 
-  private float getTextLength() {
-    return mPaint == null ? 0.0F : mPaint.measureText(text);
+  private void parseFurigana() {
+    furiganaChunks.clear();
+    if (!isShowFurigana || furigana.isEmpty()) return;
+    try {
+      JSONArray array = new JSONArray(furigana);
+      for (int i = 0; i < array.length(); i++) {
+        JSONObject item = array.optJSONObject(i);
+        if (item == null) continue;
+        String surface = item.optString("surface", "");
+        if (surface.isEmpty()) continue;
+        String reading = item.isNull("reading") ? "" : item.optString("reading", "");
+        boolean isKanaOnly = item.optBoolean("isKanaOnly", false);
+        furiganaChunks.add(new FuriganaChunk(surface, reading, isKanaOnly));
+      }
+    } catch (Exception ignored) {}
   }
 
-  private float getDrawY() {
-    Paint.FontMetrics fontMetrics = mPaint.getFontMetrics();
-    float top = fontMetrics.top;
-    float bottom = fontMetrics.bottom;
-    float ascent = fontMetrics.ascent;
-    // float descent = fontMetrics.descent;
+  private boolean hasFurigana() {
+    return isShowFurigana && !furiganaChunks.isEmpty();
+  }
 
-    float y;
+  private void updateWrappedLines() {
+    wrappedPrimaryLines.clear();
+    wrappedExtendedLines.clear();
+    wrappedFuriganaLines.clear();
 
-    // float y = Math.abs(mPaint.ascent() + mPaint.descent()) / 2;
-    switch (gravityVertical) {
-      case Gravity.CENTER_VERTICAL:
-        y = viewHeight / 2F + (bottom - top) / 2 - bottom;
-        break;
-      case Gravity.BOTTOM:
-        y = viewHeight - bottom;
-        break;
-      default:
-        y = -ascent;
-        break;
+    if (isSingleLineMode) {
+      wrappedPrimaryLines.add(text == null ? "" : text);
+      if (hasFurigana()) wrappedFuriganaLines.add(new ArrayList<>(furiganaChunks));
+      return;
     }
-    return y;
+
+    if (hasFurigana()) {
+      wrapFuriganaChunks();
+      if (wrappedFuriganaLines.isEmpty()) {
+        wrappedPrimaryLines.add(text == null ? "" : text);
+      }
+    } else {
+      wrappedPrimaryLines.addAll(wrapPlainText(text));
+    }
+
+    for (String line : extendedLyrics) {
+      wrappedExtendedLines.addAll(wrapPlainText(line));
+    }
+
+    if (wrappedPrimaryLines.isEmpty() && !hasFurigana()) {
+      wrappedPrimaryLines.add(text == null ? "" : text);
+    }
+  }
+
+  private void wrapFuriganaChunks() {
+    ArrayList<FuriganaChunk> currentLine = new ArrayList<>();
+    StringBuilder currentText = new StringBuilder();
+    float currentWidth = 0F;
+    float maxWidth = getWrapWidth();
+
+    for (FuriganaChunk chunk : furiganaChunks) {
+      float chunkWidth = getChunkWidth(chunk);
+      boolean shouldWrap = !currentLine.isEmpty() && maxWidth > 0F && currentWidth + chunkWidth > maxWidth;
+      if (shouldWrap) {
+        wrappedFuriganaLines.add(new ArrayList<>(currentLine));
+        wrappedPrimaryLines.add(currentText.toString());
+        currentLine.clear();
+        currentText.setLength(0);
+        currentWidth = 0F;
+      }
+      currentLine.add(chunk);
+      currentText.append(chunk.surface);
+      currentWidth += chunkWidth;
+    }
+
+    if (!currentLine.isEmpty() || furiganaChunks.isEmpty()) {
+      wrappedFuriganaLines.add(new ArrayList<>(currentLine));
+      wrappedPrimaryLines.add(currentText.toString());
+    }
+  }
+
+  private ArrayList<String> wrapPlainText(String value) {
+    ArrayList<String> lines = new ArrayList<>();
+    String source = value == null ? "" : value;
+    if (source.isEmpty()) {
+      lines.add("");
+      return lines;
+    }
+
+    float maxWidth = getWrapWidth();
+    if (maxWidth <= 0F) {
+      lines.add(source);
+      return lines;
+    }
+
+    StringBuilder currentLine = new StringBuilder();
+    for (int i = 0; i < source.length(); i++) {
+      String ch = source.substring(i, i + 1);
+      if ("\n".equals(ch)) {
+        lines.add(currentLine.toString());
+        currentLine.setLength(0);
+        continue;
+      }
+      String nextLine = currentLine + ch;
+      if (currentLine.length() > 0 && mPaint.measureText(nextLine) > maxWidth) {
+        lines.add(currentLine.toString());
+        currentLine.setLength(0);
+      }
+      currentLine.append(ch);
+    }
+
+    if (currentLine.length() > 0 || lines.isEmpty()) {
+      lines.add(currentLine.toString());
+    }
+    return lines;
+  }
+
+  private int getPrimaryDisplayLineCount() {
+    if (hasFurigana()) return Math.max(wrappedFuriganaLines.size(), 1);
+    return Math.max(wrappedPrimaryLines.size(), 1);
+  }
+
+  private String getPrimaryLine(int index) {
+    if (wrappedPrimaryLines.isEmpty()) return text == null ? "" : text;
+    if (index < 0 || index >= wrappedPrimaryLines.size()) return "";
+    return wrappedPrimaryLines.get(index);
+  }
+
+  private float getWrapWidth() {
+    if (viewWidth > 0F) return viewWidth;
+    if (getWidth() > 0) return getWidth();
+    return 0F;
+  }
+
+  private float getTextLength() {
+    if (mPaint == null) return 0F;
+    if (hasFurigana()) {
+      if (isSingleLineMode) return getFuriganaLineWidth(furiganaChunks);
+      float maxWidth = 0F;
+      for (ArrayList<FuriganaChunk> line : wrappedFuriganaLines) {
+        maxWidth = Math.max(maxWidth, getFuriganaLineWidth(line));
+      }
+      return maxWidth;
+    }
+    if (isSingleLineMode) return mPaint.measureText(text);
+    float maxWidth = 0F;
+    for (String line : wrappedPrimaryLines) {
+      maxWidth = Math.max(maxWidth, mPaint.measureText(line));
+    }
+    return maxWidth;
+  }
+
+  private float getNormalLineHeight() {
+    if (mPaint == null) return 0F;
+    Paint.FontMetrics fontMetrics = mPaint.getFontMetrics();
+    return fontMetrics.bottom - fontMetrics.top;
+  }
+
+  private float getPrimaryLineHeight() {
+    if (mPaint == null) return 0F;
+    if (!hasFurigana() || readingPaint == null) return getNormalLineHeight();
+    Paint.FontMetrics mainMetrics = mPaint.getFontMetrics();
+    Paint.FontMetrics readingMetrics = readingPaint.getFontMetrics();
+    return (readingMetrics.bottom - readingMetrics.top) + READING_GAP + (mainMetrics.bottom - mainMetrics.top);
+  }
+
+  private float getChunkWidth(FuriganaChunk chunk) {
+    if (mPaint == null) return 0F;
+    float surfaceWidth = mPaint.measureText(chunk.surface);
+    float readingWidth = chunk.isKanaOnly || chunk.reading.isEmpty() || readingPaint == null ? 0F : readingPaint.measureText(chunk.reading);
+    return Math.max(surfaceWidth, readingWidth);
+  }
+
+  private float getFuriganaLineWidth() {
+    return getFuriganaLineWidth(furiganaChunks);
+  }
+
+  private float getFuriganaLineWidth(ArrayList<FuriganaChunk> chunks) {
+    if (mPaint == null) return 0F;
+    float width = 0F;
+    for (FuriganaChunk chunk : chunks) {
+      width += getChunkWidth(chunk);
+    }
+    return width;
+  }
+
+  private float getAlignedX(float contentWidth) {
+    if (isSingleLineMode && contentWidth >= viewWidth) return xx;
+    switch (gravityHorizontal) {
+      case Gravity.CENTER_HORIZONTAL:
+        return (viewWidth - contentWidth) / 2F;
+      case Gravity.END:
+        return viewWidth - contentWidth;
+      default:
+        return 0F;
+    }
   }
 
   private float getDrawX() {
-    float x;
-    if (textLength < viewWidth) {
-      switch (gravityHorizontal) {
-        case Gravity.CENTER_HORIZONTAL:
-          x = (viewWidth - textLength) / 2;
-          break;
-        case Gravity.END:
-          x = viewWidth - textLength;
-          break;
-        default:
-          x = 0;
-          break;
-      }
-      isStop = true;
-    } else {
-      x = xx;
-    }
-    return x;
+    if (isSingleLineMode && textLength >= viewWidth) return xx;
+    isStop = true;
+    return getAlignedX(textLength);
   }
 
-  // public void setSpeed(float speed) {
-  //  this.speed = speed;
-  // }
+  private float getContentTop(float contentHeight) {
+    switch (gravityVertical) {
+      case Gravity.CENTER_VERTICAL:
+        return (viewHeight - contentHeight) / 2F;
+      case Gravity.BOTTOM:
+        return viewHeight - contentHeight;
+      default:
+        return 0F;
+    }
+  }
 
+  private void drawFuriganaLine(Canvas canvas, float startX, float top) {
+    drawFuriganaLine(canvas, startX, top, furiganaChunks);
+  }
+
+  private void drawFuriganaLine(Canvas canvas, float startX, float top, ArrayList<FuriganaChunk> chunks) {
+    if (mPaint == null || readingPaint == null) return;
+    Paint.FontMetrics readingMetrics = readingPaint.getFontMetrics();
+    Paint.FontMetrics mainMetrics = mPaint.getFontMetrics();
+    float readingBaseline = top - readingMetrics.ascent;
+    float mainTop = top + (readingMetrics.bottom - readingMetrics.top) + READING_GAP;
+    float mainBaseline = mainTop - mainMetrics.ascent;
+    float x = startX;
+
+    for (FuriganaChunk chunk : chunks) {
+      float surfaceWidth = mPaint.measureText(chunk.surface);
+      boolean showReading = !chunk.isKanaOnly && !chunk.reading.isEmpty();
+      float readingWidth = showReading ? readingPaint.measureText(chunk.reading) : 0F;
+      float chunkWidth = Math.max(surfaceWidth, readingWidth);
+      if (showReading) {
+        canvas.drawText(chunk.reading, x + (chunkWidth - readingWidth) / 2F, readingBaseline, readingPaint);
+      }
+      canvas.drawText(chunk.surface, x + (chunkWidth - surfaceWidth) / 2F, mainBaseline, mPaint);
+      x += chunkWidth;
+    }
+  }
 }

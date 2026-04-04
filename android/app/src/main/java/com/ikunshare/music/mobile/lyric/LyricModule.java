@@ -20,7 +20,9 @@ public class LyricModule extends ReactContextBaseJavaModule {
 
   boolean isShowTranslation = false;
   boolean isShowRoma = false;
+  boolean isShowFurigana = false;
   float playbackRate = 1;
+  float scrollDelay = 0;
 
   private int listenerCount = 0;
 
@@ -67,7 +69,33 @@ public class LyricModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void showDesktopLyric(ReadableMap data, Promise promise) {
-    if (lyric == null) lyric = new Lyric(reactContext, isShowTranslation, isShowRoma, playbackRate);
+    if (data.hasKey("isShowTranslation")) {
+      isShowTranslation = data.getBoolean("isShowTranslation");
+    }
+    if (data.hasKey("isShowRoma")) {
+      isShowRoma = data.getBoolean("isShowRoma");
+    }
+    if (data.hasKey("isShowFurigana")) {
+      isShowFurigana = data.getBoolean("isShowFurigana");
+    }
+    if (data.hasKey("scrollDelay")) {
+      scrollDelay = (float) data.getDouble("scrollDelay");
+    }
+    if (lyric == null) {
+      lyric = new Lyric(
+        reactContext,
+        isShowTranslation,
+        isShowRoma,
+        isShowFurigana,
+        playbackRate,
+        scrollDelay
+      );
+    } else {
+      lyric.toggleTranslation(isShowTranslation);
+      lyric.toggleRoma(isShowRoma);
+      lyric.toggleFurigana(isShowFurigana);
+      lyric.setScrollDelay(scrollDelay);
+    }
     lyric.showDesktopLyric(Arguments.toBundle(data), promise);
   }
 
@@ -79,17 +107,26 @@ public class LyricModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void setSendLyricTextEvent(boolean isSend, Promise promise) {
-    if (lyric == null) lyric = new Lyric(reactContext, isShowTranslation, isShowRoma, playbackRate);
+    if (lyric == null) {
+      lyric = new Lyric(
+        reactContext,
+        isShowTranslation,
+        isShowRoma,
+        isShowFurigana,
+        playbackRate,
+        scrollDelay
+      );
+    }
     lyric.setSendLyricTextEvent(isSend);
     promise.resolve(null);
   }
 
 
   @ReactMethod
-  public void setLyric(String lyric, String translation, String romaLyric, Promise promise) {
+  public void setLyric(String lyric, String translation, String romaLyric, String furigana, Promise promise) {
     // Log.d("Lyric", "set lyric: " + lyric);
     // Log.d("Lyric", "set lyric translation: " + translation);
-    if (this.lyric != null) this.lyric.setLyric(lyric, translation, romaLyric);
+    if (this.lyric != null) this.lyric.setLyric(lyric, translation, romaLyric, furigana);
     promise.resolve(null);
   }
 
@@ -111,6 +148,20 @@ public class LyricModule extends ReactContextBaseJavaModule {
   public void toggleRoma(boolean isShowRoma, Promise promise) {
     this.isShowRoma = isShowRoma;
     if (lyric != null) lyric.toggleRoma(isShowRoma);
+    promise.resolve(null);
+  }
+
+  @ReactMethod
+  public void toggleFurigana(boolean isShowFurigana, Promise promise) {
+    this.isShowFurigana = isShowFurigana;
+    if (lyric != null) lyric.toggleFurigana(isShowFurigana);
+    promise.resolve(null);
+  }
+
+  @ReactMethod
+  public void setScrollDelay(float scrollDelay, Promise promise) {
+    this.scrollDelay = scrollDelay;
+    if (lyric != null) lyric.setScrollDelay(scrollDelay);
     promise.resolve(null);
   }
 

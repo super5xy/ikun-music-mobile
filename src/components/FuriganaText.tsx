@@ -37,6 +37,7 @@ type FuriganaTextProps = {
   readingScale?: number
   readingLineHeightScale?: number
   enabled?: boolean
+  isJapaneseLyric?: boolean
 }
 
 const FuriganaText = ({
@@ -49,9 +50,10 @@ const FuriganaText = ({
   readingScale = 0.55,
   readingLineHeightScale = 0.8,
   enabled = true,
+  isJapaneseLyric,
 }: FuriganaTextProps) => {
   const [chunks, setChunks] = useState<FuriganaChunk[] | null>(null)
-  const hasJapanese = useMemo(() => hasJapaneseKana(text), [text])
+  const hasJapanese = useMemo(() => isJapaneseLyric ?? hasJapaneseKana(text), [isJapaneseLyric, text])
 
   useEffect(() => {
     let active = true

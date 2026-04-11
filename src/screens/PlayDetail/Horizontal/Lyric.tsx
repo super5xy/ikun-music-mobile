@@ -19,6 +19,7 @@ import playerState from '@/store/player/state'
 import { scrollTo } from '@/utils/scroll'
 import PlayLine, { type PlayLineType } from '../components/PlayLine'
 import FuriganaText from '@/components/FuriganaText'
+import { hasJapaneseKana } from '@/utils/furigana'
 // import { screenkeepAwake } from '@/utils/nativeModules/utils'
 // import { log } from '@/utils/log'
 // import { toast } from '@/utils/tools'
@@ -29,10 +30,11 @@ interface LineProps {
   line: Line
   lineNum: number
   activeLine: number
+  isJapaneseLyric: boolean
   onLayout: (lineNum: number, height: number, width: number) => void
 }
 const LrcLine = memo(
-  ({ line, lineNum, activeLine, onLayout }: LineProps) => {
+  ({ line, lineNum, activeLine, isJapaneseLyric, onLayout }: LineProps) => {
     const theme = useTheme()
     const lrcFontSize = useSettingValue('playDetail.horizontal.style.lrcFontSize')
     const textAlign = useSettingValue('playDetail.style.align')
@@ -64,6 +66,7 @@ const LrcLine = memo(
               textAlign={textAlign}
               color={colors[0]}
               opacity={colors[2]}
+              isJapaneseLyric={isJapaneseLyric}
             />
           </View>
         ) : (
@@ -112,6 +115,10 @@ const wait = async () => new Promise((resolve) => setTimeout(resolve, 100))
 
 export default () => {
   const lyricLines = useLrcSet()
+  const isJapaneseLyric = useMemo(
+    () => lyricLines.some((line) => hasJapaneseKana(line.text)),
+    [lyricLines]
+  )
   const { line } = useLrcPlay()
   const flatListRef = useRef<FlatList>(null)
   const playLineRef = useRef<PlayLineType>(null)
@@ -299,7 +306,15 @@ export default () => {
   }, [])
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => {
-    return <LrcLine line={item} lineNum={index} activeLine={line} onLayout={handleLineLayout} />
+    return (
+      <LrcLine
+        line={item}
+        lineNum={index}
+        activeLine={line}
+        isJapaneseLyric={isJapaneseLyric}
+        onLayout={handleLineLayout}
+      />
+    )
   }
   const getkey: FlatListType['keyExtractor'] = (item, index) => `${index}${item.text}`
 

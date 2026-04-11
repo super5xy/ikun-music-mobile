@@ -9,6 +9,7 @@ import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
@@ -75,13 +76,23 @@ public class LyricView extends Activity implements View.OnTouchListener {
   private int mLastRotation;
   private OrientationEventListener orientationEventListener = null;
 
+  final Handler mainHandler;
   final Handler fixViewPositionHandler;
-  final Runnable fixViewPositionRunnable = this::updateViewPosition;
+  final Runnable fixViewPositionRunnable = this::updateViewPositionOnUiThread;
 
   LyricView(ReactApplicationContext reactContext, LyricEvent lyricEvent) {
     this.reactContext = reactContext;
     this.lyricEvent = lyricEvent;
-    fixViewPositionHandler = new Handler();
+    mainHandler = new Handler(Looper.getMainLooper());
+    fixViewPositionHandler = mainHandler;
+  }
+
+  private void runOnMainThread(Runnable runnable) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      runnable.run();
+      return;
+    }
+    mainHandler.post(runnable);
   }
 
   private void listenOrientationEvent() {
@@ -89,6 +100,7 @@ public class LyricView extends Activity implements View.OnTouchListener {
       orientationEventListener = new OrientationEventListener(reactContext, SensorManager.SENSOR_DELAY_NORMAL) {
         @Override
         public void onOrientationChanged(int orientation) {
+          if (windowManager == null) return;
           Display display = windowManager.getDefaultDisplay();
           int rotation = display.getRotation();
           if (rotation != mLastRotation) {
@@ -168,12 +180,17 @@ public class LyricView extends Activity implements View.OnTouchListener {
   }
 
   private void updateViewPosition() {
+    runOnMainThread(this::updateViewPositionOnUiThread);
+  }
+
+  private void updateViewPositionOnUiThread() {
+    if (windowManager == null || layoutParams == null || textView == null) return;
     if (!updateWH()) return;
 
     int width = (int) (maxWidth * widthPercentage);
     if (layoutParams.width != width) {
       layoutParams.width = width;
-      if (textView != null) textView.setWidth(width);
+      textView.setWidth(width);
     }
 
     fixViewPosition();
@@ -212,33 +229,37 @@ public class LyricView extends Activity implements View.OnTouchListener {
 //  }
 // boolean isLock, String themeColor, float alpha, int lyricViewX, int lyricViewY, String textX, String textY
   public void showLyricView(Bundle options) {
-    isLock = options.getBoolean("isLock", isLock);
-    isSingleLine = options.getBoolean("isSingleLine", isSingleLine);
-    isShowToggleAnima = options.getBoolean("isShowToggleAnima", isShowToggleAnima);
-    isShowFurigana = options.getBoolean("isShowFurigana", isShowFurigana);
-    unplayColor = options.getString("unplayColor", unplayColor);
-    playedColor = options.getString("playedColor", playedColor);
-    shadowColor = options.getString("shadowColor", shadowColor);
-    prevViewPercentageX = (float) options.getDouble("lyricViewX", 0f) / 100f;
-    prevViewPercentageY = (float) options.getDouble("lyricViewY", 0f) / 100f;
-    textX = options.getString("textX", textX);
-    textY = options.getString("textY", textY);
-    alpha = (float) options.getDouble("alpha", alpha);
-    textSize = (float) options.getDouble("textSize", textSize);
-    widthPercentage = (float) options.getDouble("width", 100) / 100f;
-    maxLineNum = (int) options.getDouble("maxLineNum", maxLineNum);
-    handleShowLyric();
-    listenOrientationEvent();
+    runOnMainThread(() -> {
+      isLock = options.getBoolean("isLock", isLock);
+      isSingleLine = options.getBoolean("isSingleLine", isSingleLine);
+      isShowToggleAnima = options.getBoolean("isShowToggleAnima", isShowToggleAnima);
+      isShowFurigana = options.getBoolean("isShowFurigana", isShowFurigana);
+      unplayColor = options.getString("unplayColor", unplayColor);
+      playedColor = options.getString("playedColor", playedColor);
+      shadowColor = options.getString("shadowColor", shadowColor);
+      prevViewPercentageX = (float) options.getDouble("lyricViewX", 0f) / 100f;
+      prevViewPercentageY = (float) options.getDouble("lyricViewY", 0f) / 100f;
+      textX = options.getString("textX", textX);
+      textY = options.getString("textY", textY);
+      alpha = (float) options.getDouble("alpha", alpha);
+      textSize = (float) options.getDouble("textSize", textSize);
+      widthPercentage = (float) options.getDouble("width", 100) / 100f;
+      maxLineNum = (int) options.getDouble("maxLineNum", maxLineNum);
+      handleShowLyric();
+      listenOrientationEvent();
+    });
   }
 
   public void showLyricView() {
-    try {
-      handleShowLyric();
-    } catch (Exception e) {
-      Log.e("Lyric", e.getMessage());
-      return;
-    }
-    listenOrientationEvent();
+    runOnMainThread(() -> {
+      try {
+        handleShowLyric();
+      } catch (Exception e) {
+        Log.e("Lyric", e.getMessage());
+        return;
+      }
+      listenOrientationEvent();
+    });
   }
 
   public static int parseColor(String input) {
@@ -381,14 +402,19 @@ public class LyricView extends Activity implements View.OnTouchListener {
   }
 
   public void setLyric(String text, String furigana, ArrayList<String> extendedLyrics) {
-    if (text.equals("") && text.equals(currentLyric) && extendedLyrics.size() == 0) return;
+    boolean shouldSkip = text.equals("") && text.equals(currentLyric) && extendedLyrics.size() == 0;
     currentLyric = text;
     currentFurigana = furigana == null ? "" : furigana;
     currentExtendedLyrics = extendedLyrics;
+    if (shouldSkip) return;
+    runOnMainThread(() -> setLyricOnUiThread(text, currentFurigana, extendedLyrics));
+  }
+
+  private void setLyricOnUiThread(String text, String furigana, ArrayList<String> extendedLyrics) {
     if (textView == null) return;
     String displayText = text;
     ArrayList<String> normalExtendedLyrics = new ArrayList<>(extendedLyrics.size());
-    String viewFurigana = currentFurigana;
+    String viewFurigana = furigana;
     for (String lrc : extendedLyrics) {
       if (lrc != null && lrc.startsWith(FURIGANA_MARK)) {
         if (viewFurigana.isEmpty()) viewFurigana = lrc.substring(FURIGANA_MARK.length());
@@ -412,33 +438,37 @@ public class LyricView extends Activity implements View.OnTouchListener {
   }
 
   public void setMaxLineNum(int maxLineNum) {
-    this.maxLineNum = maxLineNum;
-    if (textView == null) return;
-    if (!isSingleLine) textView.setMaxLines(maxLineNum);
-    setLayoutParamsHeight();
+    runOnMainThread(() -> {
+      this.maxLineNum = maxLineNum;
+      if (textView == null) return;
+      if (!isSingleLine) textView.setMaxLines(maxLineNum);
+      setLayoutParamsHeight();
 
-    int maxY = maxHeight - layoutParams.height;
-    int y = layoutParams.y;
-    if (y < 0) y = 0;
-    else if (y > maxY) y = maxY;
-    if (layoutParams.y != y) layoutParams.y = y;
+      int maxY = maxHeight - layoutParams.height;
+      int y = layoutParams.y;
+      if (y < 0) y = 0;
+      else if (y > maxY) y = maxY;
+      if (layoutParams.y != y) layoutParams.y = y;
 
-    windowManager.updateViewLayout(textView, layoutParams);
+      windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   public void setWidth(int width) {
-    if (textView == null) return;
-    widthPercentage = width / 100f;
-    layoutParams.width = (int) (maxWidth * widthPercentage);
-    textView.setWidth(layoutParams.width);
+    runOnMainThread(() -> {
+      if (textView == null || layoutParams == null || windowManager == null) return;
+      widthPercentage = width / 100f;
+      layoutParams.width = (int) (maxWidth * widthPercentage);
+      textView.setWidth(layoutParams.width);
 
-    int maxX = maxWidth - layoutParams.width;
-    int x = layoutParams.x;
-    if (x < 0) x = 0;
-    else if (x > maxX) x = maxX;
-    if (layoutParams.x != x) layoutParams.x = x;
+      int maxX = maxWidth - layoutParams.width;
+      int x = layoutParams.x;
+      if (x < 0) x = 0;
+      else if (x > maxX) x = maxX;
+      if (layoutParams.x != x) layoutParams.x = x;
 
-    windowManager.updateViewLayout(textView, layoutParams);
+      windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   @Override
@@ -513,120 +543,140 @@ public class LyricView extends Activity implements View.OnTouchListener {
   }
 
   public void lockView() {
-    isLock = true;
-    if (windowManager == null || textView == null) return;
-    layoutParams.flags = getLayoutParamsFlags();
+    runOnMainThread(() -> {
+      isLock = true;
+      if (windowManager == null || textView == null || layoutParams == null) return;
+      layoutParams.flags = getLayoutParamsFlags();
 
-    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
-      layoutParams.alpha = 0.8f;
-    }
-    textView.setBackgroundColor(Color.TRANSPARENT);
-    windowManager.updateViewLayout(textView, layoutParams);
+      if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
+        layoutParams.alpha = 0.8f;
+      }
+      textView.setBackgroundColor(Color.TRANSPARENT);
+      windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   public void unlockView() {
-    isLock = false;
-    if (windowManager == null || textView == null) return;
-    layoutParams.flags = getLayoutParamsFlags();
+    runOnMainThread(() -> {
+      isLock = false;
+      if (windowManager == null || textView == null || layoutParams == null) return;
+      layoutParams.flags = getLayoutParamsFlags();
 
-    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
-      layoutParams.alpha = 1.0f;
-    }
-    textView.setBackgroundResource(R.drawable.rounded_corner);
-    windowManager.updateViewLayout(textView, layoutParams);
+      if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
+        layoutParams.alpha = 1.0f;
+      }
+      textView.setBackgroundResource(R.drawable.rounded_corner);
+      windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   public void setColor(String unplayColor, String playedColor, String shadowColor) {
-    this.unplayColor = unplayColor;
-    this.playedColor = playedColor;
-    this.shadowColor = shadowColor;
-    if (textView == null) return;
-    textView.setTextColor(parseColor(playedColor));
-    textView.setShadowColor(parseColor(shadowColor));
-    // windowManager.updateViewLayout(textView, layoutParams);
+    runOnMainThread(() -> {
+      this.unplayColor = unplayColor;
+      this.playedColor = playedColor;
+      this.shadowColor = shadowColor;
+      if (textView == null) return;
+      textView.setTextColor(parseColor(playedColor));
+      textView.setShadowColor(parseColor(shadowColor));
+      // windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   public void setLyricTextPosition(String textX, String textY) {
-    this.textX = textX;
-    this.textY = textY;
-    if (windowManager == null || textView == null) return;
-    int textPositionX;
-    int textPositionY;
-    // Log.d("Lyric", "textX: " + textX + "  textY: " + textY);
-    switch (textX) {
-      case "CENTER":
-        textPositionX = Gravity.CENTER_HORIZONTAL;
-        break;
-      case "RIGHT":
-        textPositionX = Gravity.END;
-        break;
-      case "LEFT":
-      default:
-        textPositionX = Gravity.START;
-        break;
-    }
-    switch (textY) {
-      case "CENTER":
-        textPositionY = Gravity.CENTER_VERTICAL;
-        break;
-      case "BOTTOM":
-        textPositionY = Gravity.BOTTOM;
-        break;
-      case "TOP":
-      default:
-        textPositionY = Gravity.TOP;
-        break;
-    }
-    textView.setGravity(textPositionX | textPositionY);
-    windowManager.updateViewLayout(textView, layoutParams);
+    runOnMainThread(() -> {
+      this.textX = textX;
+      this.textY = textY;
+      if (windowManager == null || textView == null || layoutParams == null) return;
+      int textPositionX;
+      int textPositionY;
+      // Log.d("Lyric", "textX: " + textX + "  textY: " + textY);
+      switch (textX) {
+        case "CENTER":
+          textPositionX = Gravity.CENTER_HORIZONTAL;
+          break;
+        case "RIGHT":
+          textPositionX = Gravity.END;
+          break;
+        case "LEFT":
+        default:
+          textPositionX = Gravity.START;
+          break;
+      }
+      switch (textY) {
+        case "CENTER":
+          textPositionY = Gravity.CENTER_VERTICAL;
+          break;
+        case "BOTTOM":
+          textPositionY = Gravity.BOTTOM;
+          break;
+        case "TOP":
+        default:
+          textPositionY = Gravity.TOP;
+          break;
+      }
+      textView.setGravity(textPositionX | textPositionY);
+      windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   public void setAlpha(float alpha) {
     this.alpha = alpha;
-    if (textView == null) return;
-    textView.setAlpha(alpha);
+    runOnMainThread(() -> {
+      if (textView == null) return;
+      textView.setAlpha(alpha);
+    });
   }
 
   public void setSingleLine(boolean isSingleLine) {
     this.isSingleLine = isSingleLine;
-    if (textView == null) return;
-    windowManager.removeView(textView);
-    createTextView();
-    textView.setWidth(layoutParams.width);
-    textView.setHeight(layoutParams.height);
-    windowManager.addView(textView, layoutParams);
+    runOnMainThread(() -> {
+      if (textView == null || layoutParams == null || windowManager == null) return;
+      windowManager.removeView(textView);
+      createTextView();
+      textView.setWidth(layoutParams.width);
+      textView.setHeight(layoutParams.height);
+      windowManager.addView(textView, layoutParams);
 
-    if (isLock) lockView();
-    else unlockView();
+      if (isLock) lockView();
+      else unlockView();
 
-    setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
+      setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
+    });
   }
 
   public void setShowToggleAnima(boolean showToggleAnima) {
     isShowToggleAnima = showToggleAnima;
-    if (textView == null) return;
-    textView.setShowAnima(showToggleAnima);
+    runOnMainThread(() -> {
+      if (textView == null) return;
+      textView.setShowAnima(showToggleAnima);
+    });
   }
 
   public void setShowFurigana(boolean showFurigana) {
     isShowFurigana = showFurigana;
-    if (textView == null) return;
-    setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
+    runOnMainThread(() -> {
+      if (textView == null) return;
+      setLyric(currentLyric, currentFurigana, currentExtendedLyrics);
+    });
   }
 
   public void setTextSize(float size) {
     this.textSize = size;
-    if (windowManager == null || textView == null) return;
-    textView.setTextSize(size);
-    setLayoutParamsHeight();
-    windowManager.updateViewLayout(textView, layoutParams);
+    runOnMainThread(() -> {
+      if (windowManager == null || textView == null || layoutParams == null) return;
+      textView.setTextSize(size);
+      setLayoutParamsHeight();
+      windowManager.updateViewLayout(textView, layoutParams);
+    });
   }
 
   public void destroyView() {
-    if (textView == null || windowManager == null) return;
-    windowManager.removeView(textView);
-    textView = null;
-    removeOrientationEvent();
+    runOnMainThread(() -> {
+      if (textView == null || windowManager == null) return;
+      windowManager.removeView(textView);
+      textView = null;
+      removeOrientationEvent();
+    });
   }
 
   public void destroy() {

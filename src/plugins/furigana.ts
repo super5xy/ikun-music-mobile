@@ -67,13 +67,20 @@ export const disposeFurigana = async () => {
 
 const rxTimeField = /^(?:\[[\d:.]+\])+/
 
-const shouldBuildLineFurigana = (text: string, chunks: FuriganaChunk[]) => {
-  return hasJapaneseKana(text) && hasFuriganaReading(chunks)
+const shouldBuildLineFurigana = (isJapaneseLyric: boolean, chunks: FuriganaChunk[]) => {
+  return isJapaneseLyric && hasFuriganaReading(chunks)
 }
 
 export const buildFuriganaLyric = async (lyric: string) => {
   if (!lyric) return ''
   const lines = lyric.split(/\r\n|\n|\r/)
+  const isJapaneseLyric = lines.some((line) => {
+    const trimLine = line.trim()
+    if (!trimLine) return false
+    const timeFieldMatch = trimLine.match(rxTimeField)
+    const text = timeFieldMatch ? trimLine.slice(timeFieldMatch[0].length).trim() : trimLine
+    return hasJapaneseKana(text)
+  })
   const resultLines = await Promise.all(
     lines.map(async (line) => {
       const trimLine = line.trim()
@@ -84,7 +91,7 @@ export const buildFuriganaLyric = async (lyric: string) => {
       const text = trimLine.slice(timeField.length).trim()
       if (!text) return ''
       const chunks = await tokenizeFurigana(text)
-      if (!shouldBuildLineFurigana(text, chunks)) return ''
+      if (!shouldBuildLineFurigana(isJapaneseLyric, chunks)) return ''
       return `${timeField}${FURIGANA_MARK}${JSON.stringify(chunks)}`
     })
   )

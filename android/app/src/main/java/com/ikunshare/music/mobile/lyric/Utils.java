@@ -1,6 +1,7 @@
 package com.ikunshare.music.mobile.lyric;
 
 import android.os.Handler;
+import android.os.Looper;
 
 public class Utils {
   // https://gist.github.com/mathew-kurian/2bd2b8b3a2f6438d6786
@@ -15,7 +16,7 @@ public class Utils {
   }
 
   private static class TimeoutEvent {
-    private static final Handler handler = new Handler();
+    private static final Handler handler = new Handler(Looper.getMainLooper());
     private volatile Runnable runnable;
 
     private TimeoutEvent(Runnable task, long delay) {
